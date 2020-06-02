@@ -3,7 +3,9 @@ Option Explicit
 Sub Sample1()
 
 Dim JoinSheetName As String: JoinSheetName = "統合"    ' 統合シートのシート名
+Dim DescSheetName As String: DescSheetName = "説明"    ' 説明用シートのシート名
 Dim HeaderRowCnt  As Long:   HeaderRowCnt = 2          ' ヘッダの行数
+Dim StartCol      As Long:   StartCol = 2              ' 統合するデータの開始列
 
 Dim i        As Long
 Dim s        As Long: s = 1                             ' 最大行を超えた場合次の統合シートを作成するための番号
@@ -13,6 +15,8 @@ Dim MaxRow   As Long
 Dim MaxCol   As Long
 Dim MyArray  As Variant
 Dim JoinSh   As Worksheet
+Dim flg      As Boolean: flg = False
+
 
 'シート削除時のアラートを一時的に無効化
 Application.DisplayAlerts = False
@@ -28,33 +32,34 @@ Next
 'シート削除時のアラートを有効化
 Application.DisplayAlerts = True
 
-
 '新規に統合シートを追加
 Worksheets.Add Before:=Worksheets(s)
 ActiveSheet.Name = JoinSheetName
 
 ' ヘッダをコピー
 Worksheets(2).Rows(1).Copy Worksheets(1).Rows(1)
+ 
+' ヘッダから最終列を取得
+MaxCol = ActiveSheet.UsedRange.Columns.Count
 
 Set JoinSh = ActiveSheet
-
 For i = s + 1 To Worksheets.Count 'シートを統合シートの次～末尾までループ
 
-    With Worksheets(i) '各月シート
+    With Worksheets(i) '集計対象シート
+        ' 説明用シートの場合は処理をスキップ
+        If InStr(.Name, DescSheetName) <> 0 Then
+            GoTo Continue
+        End If
+    
         StartRow = HeaderRowCnt + 1           ' コピーはヘッダの次の行から
         MaxRow = .Cells(Rows.Count, 1).End(xlUp).Row + HeaderRowCnt ' 最終行を取得
-        MaxCol = .Cells(1, Columns.Count).End(xlToLeft).Column      '最終列を取得
-        
         MyArray = Range(.Cells(StartRow, 1), .Cells(MaxRow, MaxCol)) 'データ範囲を配列に格納
-    
     End With
     
     With JoinSh '統合シート
-        
         MaxRow = .Cells(Rows.Count, 1).End(xlUp).Row '統合シートの１列目で最終行取得
         
         If MaxRow + UBound(MyArray) > Rows.Count Then '最大行を超える場合の処理
-        
             s = s + 1 '統合シートの番号を加算
         
             Worksheets.Add Before:=Worksheets(s) '新規に統合シートを追加
@@ -62,27 +67,30 @@ For i = s + 1 To Worksheets.Count 'シートを統合シートの次～末尾ま
             
             Set JoinSh = ActiveSheet '統合シートを変数に格納
             MaxRow = JoinSh.Cells(Rows.Count, 1).End(xlUp).Row '統合シートの１列目で最終行取得
-            
         End If
         
         If .Cells(2, 1) = "" Then
             '最初だけ2行目から貼り付け
             Range(.Cells(2, 1), .Cells(UBound(MyArray), MaxCol)) = MyArray
-        
         Else
             '最初以外は最終行の次に貼り付け
             Range(.Cells(MaxRow + 1, 1), .Cells(MaxRow + UBound(MyArray), MaxCol)) = MyArray
-        
         End If
         
     End With
-
+Continue:
 Next i
+
+' 不要な列を削除
+JoinSh.Range(Columns(1), Columns(StartCol - 1)).Delete
 
 ' A列をキーにしてソート
 JoinSh.UsedRange.Sort Key1:=Range("A1"), Header:=xlYes
 
-' B1を要素とする表に罫線を引く
-Worksheets(1).Range("B1").CurrentRegion.Borders.LineStyle = xlContinuous
+' 使用済みセルに罫線を引く
+Worksheets(1).UsedRange.Borders.LineStyle = xlContinuous
+
+' cellの幅自動調整
+Worksheets(1).UsedRange.Columns.AutoFit
 
 End Sub
